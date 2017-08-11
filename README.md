@@ -6,7 +6,7 @@ Too lazy to write documents... Please read `site_config.py`.
 To me it is mainly used for restarting VPN daemon in Fudan campus network when client changes his IP address.
 
 #### Features:
-- Clients request changing of certain domain via HTTPS.
+- Clients request changing of certain domain via HTTPS(`TTL` = 0).
 - Authentication is supported.
 - You can also provide a function to be executed when ip changed.
 
