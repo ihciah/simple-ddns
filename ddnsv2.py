@@ -83,6 +83,8 @@ class HTTPServer(resource.Resource):
             if ip and Auth.validate(domain_info["encryption"], auth):
                 if "onchange" not in domain_info:
                     domain_info["onchange"] = lambda x, y: ""
+                if ip == "ME":
+                    ip = request.getClientIP() or "0.0.0.0"
                 result = self.resolver.update(domain_info["domain"], ip, domain_info["onchange"]) or "OK"
                 return result
         request.setResponseCode(403)
