@@ -37,7 +37,8 @@ DOMAIN_CONFIG = [
         "domain": "domain1.ihc.im",
         "link": "/mydomain1",
         "encryption": ["otp", "AABBCCDDDDCCBBAA"],
-        "onchange": d1_onchange
+        "onchange": d1_onchange,  # Optional
+        "ttl": 10  # Optional
     },
     {
         "domain": "domain2.ihc.im",
@@ -55,6 +56,8 @@ DOMAIN_CONFIG = [
 SERVER_CONFIG = {
     "http_port": 12345,
     "dns_port": 53,
+    "ttl": 0,  # Optional
     "ssl_crt": "/etc/ssl/ihc/crt",
-    "ssl_key": "/etc/ssl/ihc/key"
+    "ssl_key": "/etc/ssl/ihc/key",
+    "dump_file": "/tmp/dns_dump"  # Optional
 }

@@ -7,11 +7,11 @@ from twisted.web import server as webserver
 from twisted.internet import reactor, defer
 from twisted.names import dns, error, server
 from OpenSSL.SSL import Context, TLSv1_METHOD
-import hmac, base64, struct, hashlib, time
+import hmac, base64, struct, hashlib, time, json, os
 from site_config import DOMAIN_CONFIG, SERVER_CONFIG
 
 
-class Auth:
+class Authentication:
     class OTP:
         def __init__(self, secret):
             self.secret = secret
@@ -47,9 +47,9 @@ class Auth:
 
     @staticmethod
     def validate(encryption, authcode):
-        methods = {"otp": Auth.OTP,
-                   "psk": Auth.PSK,
-                   "none": Auth.NONE
+        methods = {"otp": Authentication.OTP,
+                   "psk": Authentication.PSK,
+                   "none": Authentication.NONE
                    }
         if encryption == "none" or len(encryption) == 1 and encryption[0] == "none":
             encryption = ["none", ""]
@@ -80,12 +80,14 @@ class HTTPServer(resource.Resource):
             domain_info = self.domains[request.uri]
             auth = request.getHeader('Auth') or "default"
             ip = request.getHeader('IP')
-            if ip and Auth.validate(domain_info["encryption"], auth):
+            if ip and Authentication.validate(domain_info["encryption"], auth):
                 if "onchange" not in domain_info:
                     domain_info["onchange"] = lambda x, y: ""
+                if "ttl" not in domain_info:
+                    domain_info["ttl"] = SERVER_CONFIG["ttl"] if "ttl" in SERVER_CONFIG else 0
                 if ip == "ME":
                     ip = request.getClientIP() or "0.0.0.0"
-                result = self.resolver.update(domain_info["domain"], ip, domain_info["onchange"]) or "OK"
+                result = self.resolver.update(domain_info["domain"], ip, domain_info["onchange"], domain_info["ttl"]) or "OK"
                 return result
         request.setResponseCode(403)
         return "403 Forbidden"
@@ -94,20 +96,39 @@ class HTTPServer(resource.Resource):
 class DNSResolver(object):
     def __init__(self):
         self.domains = {}
-        # You can load saved DNS mapping here.
+        self.loads()
 
-    def update(self, domain, ip, onchange):
-        originl_ip = self.domains[domain] if domain in self.domains else ""
-        self.domains[domain] = ip
-        if originl_ip != ip:
-            return onchange(originl_ip, ip)
+    def update(self, domain, ip, onchange, ttl):
+        original_ip = self.domains[domain][0] if domain in self.domains else ""
+        self.domains[domain] = [ip, ttl]
+        if original_ip != ip:
+            self.dumps()
+            return onchange(original_ip, ip)
 
     def response(self, domain):
-        answer = dns.RRHeader(name=domain, payload=dns.Record_A(b'%s' % self.domains[domain], 0))
+        answer = dns.RRHeader(name=domain,
+                              payload=dns.Record_A(b'%s' % self.domains[domain][0], self.domains[domain][1]))
         answers = [answer]
         authority = []
         additional = []
         return answers, authority, additional
+
+    def loads(self):
+        if "dump_file" not in SERVER_CONFIG or not os.path.isfile(SERVER_CONFIG["dump_file"]):
+            return
+        with open(SERVER_CONFIG["dump_file"], "r") as f:
+            try:
+                content = json.loads(f.read())
+                if isinstance(content, dict):
+                    self.domains = content
+            except:
+                pass
+
+    def dumps(self):
+        if "dump_file" not in SERVER_CONFIG:
+            return
+        with open(SERVER_CONFIG["dump_file"], "w") as fw:
+            fw.write(json.dumps(self.domains))
 
     def query(self, query, timeout=None):
         if query.type == dns.A and query.name.name in self.domains:
